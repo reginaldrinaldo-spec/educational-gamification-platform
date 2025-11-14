@@ -23,6 +23,7 @@ engine = create_engine(
     connect_args={'check_same_thread': False} if not DATABASE_URL else {},
     poolclass=NullPool if DATABASE_URL else None
 )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -34,7 +35,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     full_name = Column(String)
-    role = Column(String, default='student')  # 'student', 'teacher', 'admin'
+    role = Column(String, default='student')
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -45,12 +46,12 @@ class GameSession(Base):
     id = Column(String, primary_key=True, default=lambda: str(__import__('uuid').uuid4()))
     user_id = Column(String, nullable=False, index=True)
     module_id = Column(String, nullable=False)
-    status = Column(String, default='active')  # 'active', 'completed', 'paused'
+    status = Column(String, default='active')
     score = Column(Integer, default=0)
     points_earned = Column(Integer, default=0)
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
-    
+
 Base.metadata.create_all(bind=engine)
 print("✅ Database models created successfully!")
 
@@ -61,13 +62,6 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'edu-gamification-2025')
 app.config['JWT_EXPIRATION_HOURS'] = 24
 
 # ==================== HELPER FUNCTIONS ====================
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 def create_jwt_token(user_id, email, role, expires_in_hours=24):
     """Create JWT token for authenticated user"""
     payload = {
@@ -122,11 +116,10 @@ def health():
 def test():
     return jsonify({"message": "Educational Gamification Platform API"}), 200
 
-# ==================== FASE 7: AUTHENTICATION ENDPOINTS ====================
-
+# ==================== AUTHENTICATION ENDPOINTS ====================
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    """Register a new user (Student or Teacher)"""
+    """Register a new user"""
     try:
         data = request.get_json()
         
@@ -135,7 +128,6 @@ def register():
         
         db = SessionLocal()
         
-        # Check if user already exists
         existing_user = db.query(User).filter(
             (User.email == data['email']) | (User.username == data['username'])
         ).first()
@@ -144,7 +136,6 @@ def register():
             db.close()
             return jsonify({'error': 'Email or username already exists'}), 409
         
-        # Create new user
         new_user = User(
             email=data['email'],
             username=data['username'],
@@ -156,7 +147,6 @@ def register():
         db.add(new_user)
         db.commit()
         
-        # Create JWT token
         token = create_jwt_token(new_user.id, new_user.email, new_user.role)
         
         db.close()
@@ -187,7 +177,6 @@ def login():
         
         db = SessionLocal()
         
-        # Find user by email or username
         user = db.query(User).filter(
             (User.email == data['email']) | (User.username == data['email'])
         ).first()
@@ -200,7 +189,6 @@ def login():
             db.close()
             return jsonify({'error': 'Account is inactive'}), 403
         
-        # Create JWT token
         token = create_jwt_token(user.id, user.email, user.role)
         
         db.close()
@@ -258,7 +246,6 @@ def logout():
     return jsonify({'message': 'Logout successful'}), 200
 
 # ==================== GAMIFICATION ENDPOINTS ====================
-
 @app.route('/api/game/start', methods=['POST'])
 @token_required
 def start_game_session():
@@ -310,13 +297,11 @@ def submit_game_score():
             db.close()
             return jsonify({'error': 'Session not found'}), 404
         
-        # Update session
         game_session.score = score
         game_session.points_earned = points
         game_session.status = 'completed'
         game_session.completed_at = datetime.utcnow()
         
-        # Update user points
         user = db.query(User).filter(User.id == request.user['user_id']).first()
         if user:
             user.total_points += points
@@ -366,5 +351,4 @@ def get_leaderboard():
 # ==================== MAIN ====================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    # Fix: PyJWT dependency reinstalled - rebuild v2
     app.run(host='0.0.0.0', port=port, debug=False)
