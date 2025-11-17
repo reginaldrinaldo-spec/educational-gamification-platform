@@ -1,4 +1,4 @@
-from datetime import datetime
+1from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -139,3 +139,164 @@ def award_xp(
         "total_xp": total_xp,
         **level_info,
     }
+
+# Streak & Category Mastery Models
+
+class UserStreak(db.Model):
+    __tablename__ = "user_streaks"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    current_streak = db.Column(db.Integer, default=0)
+    longest_streak = db.Column(db.Integer, default=0)
+    last_completed_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint("user_id", name="uq_user_streak"),)
+
+
+class CategoryProgress(db.Model):
+    __tablename__ = "category_progress"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category = db.Column(db.String, nullable=False)
+    quizzes_completed = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint("user_id", "category", name="uq_user_category"),)
+
+
+# Streak & Mastery Helper Functions
+
+def update_streak(user_id: int) -> dict:
+    """Update user's streak based on daily quiz completion"""
+    from datetime import date, timedelta
+    
+    today = date.today()
+    
+    # Get or create user streak record
+    streak = UserStreak.query.filter_by(user_id=user_id).first()
+    if not streak:
+        streak = UserStreak(user_id=user_id, current_streak=1, longest_streak=1, last_completed_date=today)
+        db.session.add(streak)
+    else:
+        if streak.last_completed_date:
+            days_diff = (today - streak.last_completed_date).days
+            
+            if days_diff == 0:
+                # Already completed today, no change
+                pass
+            elif days_diff == 1:
+                # Consecutive day, increment streak
+                streak.current_streak += 1
+                streak.last_completed_date = today
+                if streak.current_streak > streak.longest_streak:
+                    streak.longest_streak = streak.current_streak
+            else:
+                # Streak broken, reset to 1
+                streak.current_streak = 1
+                streak.last_completed_date = today
+        else:
+            # First completion
+            streak.current_streak = 1
+            streak.longest_streak = 1
+            streak.last_completed_date = today
+    
+    db.session.flush()
+    
+    return {
+        "current_streak": streak.current_streak,
+        "longest_streak": streak.longest_streak,
+        "last_completed_date": streak.last_completed_date.isoformat() if streak.last_completed_date else None
+    }
+
+
+def update_category_progress(user_id: int, category: str) -> dict:
+    """Track quiz completion per category"""
+    progress = CategoryProgress.query.filter_by(user_id=user_id, category=category).first()
+    
+    if not progress:
+        progress = CategoryProgress(user_id=user_id, category=category, quizzes_completed=1)
+        db.session.add(progress)
+    else:
+        progress.quizzes_completed += 1
+    
+    db.session.flush()
+    
+    return {
+        "category": category,
+        "quizzes_completed": progress.quizzes_completed,
+        "mastery_level": get_mastery_level(progress.quizzes_completed)
+    }
+
+
+def get_mastery_level(quizzes_completed: int) -> str:
+    """Calculate mastery level based on quizzes completed"""
+    if quizzes_completed >= 50:
+        return "Master"
+    elif quizzes_completed >= 25:
+        return "Expert"
+    elif quizzes_completed >= 10:
+        return "Proficient"
+    elif quizzes_completed >= 5:
+        return "Intermediate"
+    else:
+        return "Beginner"
+
+
+def check_streak_badges(user_id: int, current_streak: int) -> list:
+    """Check and award streak-based badges"""
+    awarded_badges = []
+    
+    # 7-day streak badge
+    if current_streak >= 7:
+        badge = Badge.query.filter_by(code="STREAK_7").first()
+        if badge:
+            existing = UserBadge.query.filter_by(user_id=user_id, badge_id=badge.id).first()
+            if not existing:
+                user_badge = UserBadge(user_id=user_id, badge_id=badge.id, source="streak_system")
+                db.session.add(user_badge)
+                awarded_badges.append({
+                    "badge_id": badge.id,
+                    "code": badge.code,
+                    "name": badge.name
+                })
+    
+    # 30-day streak badge
+    if current_streak >= 30:
+        badge = Badge.query.filter_by(code="STREAK_30").first()
+        if badge:
+            existing = UserBadge.query.filter_by(user_id=user_id, badge_id=badge.id).first()
+            if not existing:
+                user_badge = UserBadge(user_id=user_id, badge_id=badge.id, source="streak_system")
+                db.session.add(user_badge)
+                awarded_badges.append({
+                    "badge_id": badge.id,
+                    "code": badge.code,
+                    "name": badge.name
+                })
+    
+    return awarded_badges
+
+
+def check_category_mastery_badge(user_id: int, category: str, quizzes_completed: int) -> dict:
+    """Check and award category mastery badge"""
+    if quizzes_completed >= 10:
+        badge_code = f"CATEGORY_EXPERT_{category.upper()}"
+        badge = Badge.query.filter_by(code=badge_code).first()
+        
+        if badge:
+            existing = UserBadge.query.filter_by(user_id=user_id, badge_id=badge.id).first()
+            if not existing:
+                user_badge = UserBadge(user_id=user_id, badge_id=badge.id, source="category_mastery", related_quiz_id=None)
+                db.session.add(user_badge)
+                return {
+                    "badge_id": badge.id,
+                    "code": badge.code,
+                    "name": badge.name
+                }
+    
+    return None
