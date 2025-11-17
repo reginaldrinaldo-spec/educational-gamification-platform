@@ -137,6 +137,52 @@ class Analytics(db.Model):
         }
 
 
+class Quiz(db.Model):
+    __tablename__ = "quizzes"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    questions = db.relationship("Question", back_populates="quiz", cascade="all, delete-orphan")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "created_at": self.created_at.isoformat(),
+            "question_count": len(self.questions),
+        }
+
+
+class Question(db.Model):
+    __tablename__ = "questions"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    quiz_id = db.Column(db.Integer, db.ForeignKey("quizzes.id"), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)
+    options = db.Column(db.JSON, nullable=False)  # List of 4 options
+    correct_answer = db.Column(db.String(10), nullable=False)  # "A", "B", "C", or "D"
+    explanation = db.Column(db.Text, nullable=True)
+    difficulty = db.Column(db.String(50), nullable=True)  # "easy", "medium", "hard"
+    category = db.Column(db.String(100), nullable=True)  # "wiskunde_wetenschap", etc.
+    
+    quiz = db.relationship("Quiz", back_populates="questions")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "quiz_id": self.quiz_id,
+            "question": self.question_text,
+            "options": self.options,
+            "correct_answer": self.correct_answer,
+            "explanation": self.explanation,
+            "difficulty": self.difficulty,
+            "category": self.category,
+        }
+
 # ---------- AUTO SETUP ----------
 
 def run_initial_setup(app: Flask):
@@ -488,6 +534,94 @@ def register_routes(app: Flask):
             return jsonify({"error": str(e)}), 500
 
 
+
+    # ----- ADMIN SEED QUIZ ENDPOINT -----
+    @app.post("/admin/seed-quiz")
+    def seed_quiz():
+        """
+        Seed quiz questions from JSON payload.
+        Requires:
+            Header: X-Admin-Seed-Token: <token>
+            Body: {"quiz_title": "...", "quiz_description": "...", "questions": [...]}
+        """
+        admin_token = os.environ.get("ADMIN_SEED_TOKEN")
+        provided = request.headers.get("X-Admin-Seed-Token")
+
+        if not admin_token:
+            return jsonify({"error": "ADMIN_SEED_TOKEN not set"}), 500
+
+        if not provided or provided != admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+
+        data = request.get_json() or {}
+        quiz_title = data.get("quiz_title", "Educational Quiz")
+        quiz_description = data.get("quiz_description", "")
+        questions_data = data.get("questions", [])
+
+        if not questions_data:
+            return jsonify({"error": "no questions provided"}), 400
+
+        try:
+            # Create quiz
+            quiz = Quiz(
+                title=quiz_title,
+                description=quiz_description,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(quiz)
+            db.session.flush()  # Get quiz ID
+
+            # Add questions
+            for q_data in questions_data:
+                question = Question(
+                    quiz_id=quiz.id,
+                    question_text=q_data.get("question", ""),
+                    options=q_data.get("options", []),
+                    correct_answer=q_data.get("correct_answer", ""),
+                    explanation=q_data.get("explanation", ""),
+                    difficulty=q_data.get("difficulty", "medium"),
+                    category=q_data.get("category", "")
+                )
+                db.session.add(question)
+
+            db.session.commit()
+            
+            return jsonify({
+                "message": "quiz seeded successfully",
+                "quiz_id": quiz.id,
+                "question_count": len(questions_data)
+            }), 201
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
+    # ----- GET QUIZZES -----
+    @app.get("/quizzes")
+    @jwt_required(optional=True)
+    def list_quizzes():
+        quizzes = Quiz.query.order_by(Quiz.created_at.desc()).all()
+        return jsonify([q.to_dict() for q in quizzes])
+
+    @app.get("/quizzes/<int:quiz_id>")
+    @jwt_required(optional=True)
+    def get_quiz(quiz_id):
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({"error": "quiz not found"}), 404
+        
+        questions = [q.to_dict() for q in quiz.questions]
+        result = quiz.to_dict()
+        result["questions"] = questions
+        return jsonify(result)
+
+    @app.get("/quizzes/<int:quiz_id>/questions")
+    @jwt_required(optional=True)
+    def get_quiz_questions(quiz_id):
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({"error": "quiz not found"}), 404
+        return jsonify([q.to_dict() for q in quiz.questions])
 # ---------- APP INSTANCE ----------
 
 app = create_app()
