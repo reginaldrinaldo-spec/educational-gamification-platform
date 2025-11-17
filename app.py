@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager,
     create_access_token,
@@ -40,6 +41,9 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+        
+    # Enable CORS for frontend communication
+    CORS(app, resources={r"/*": {"origins": ["https://meme-educational-frontend.vercel.app"]}})
 
     # Auto-create tables when DB is empty
     run_initial_setup(app)
