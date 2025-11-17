@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from sqlalchemy import inspect
 import os
+from gamification_routes import gamification_bp
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -324,6 +325,9 @@ def run_seed_data():
 # ---------- ROUTES ----------
 
 def register_routes(app: Flask):
+
+        # Register gamification blueprint
+        app.register_blueprint(gamification_bp)
 
     # ----- AUTH -----
     @app.post("/auth/register")
