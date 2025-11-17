@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 from gamification_models import (
     db, Badge, Achievement, UserBadge, UserAchievement,
     XPTransaction, LeaderboardEntry,
-    get_user_total_xp, get_level_progress, award_xp
+    get_user_total_xp, get_level_progress, award_xp,
+    update_streak, update_category_progress, check_streak_badges, check_category_mastery_badge
 )
 
 gamification_bp = Blueprint("gamification", __name__, url_prefix="/api")
@@ -377,6 +378,22 @@ def complete_quiz():
                     "description": speed_badge.description,
                     "icon": speed_badge.icon_url,
                 })
+
+    # Update streak tracking
+    streak_info = update_streak(user_id)
+    
+    # Check and award streak badges
+    streak_badges = check_streak_badges(user_id, streak_info["current_streak"])
+    if streak_badges:
+        earned_badges.extend(streak_badges)
+    
+    # Update category progress
+    category_info = update_category_progress(user_id, category)
+    
+    # Check and award category mastery badge
+    mastery_badge = check_category_mastery_badge(user_id, category, category_info["quizzes_completed"])
+    if mastery_badge:
+        earned_badges.append(mastery_badge)
     
     db.session.commit()
     
@@ -393,5 +410,7 @@ def complete_quiz():
         "progress_pct": level_info["progress_pct"],
         "percentage": round(percentage, 2),
         "earned_badges": earned_badges,
+        "streak": streak_info,
+        "category_progress": category_info,
         "quizzes_completed": quiz_count or 0,
     }), 200
