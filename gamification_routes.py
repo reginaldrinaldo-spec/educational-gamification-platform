@@ -250,3 +250,148 @@ def get_leaderboard():
         "category_code": category_code,
         "results": leaderboard,
     })
+
+# ----- QUIZ COMPLETION WITH FULL GAMIFICATION -----
+@gamification_bp.route("/quizzes/complete", methods=["POST"])
+def complete_quiz():
+    """
+    Complete a quiz and award XP, badges, and track progress.
+    Payload: {
+        user_id, quiz_id, score, total_questions,
+        time_taken_seconds, category
+    }
+    """
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+    quiz_id = data.get("quiz_id")
+    score = data.get("score")
+    total_questions = data.get("total_questions")
+    time_taken_seconds = data.get("time_taken_seconds")
+    category = data.get("category", "general")
+    
+    if not all([user_id, quiz_id is not None, score is not None, total_questions, time_taken_seconds]):
+        return jsonify({"error": "Missing required fields"}), 400
+    
+    try:
+        user_id = int(user_id)
+        score = int(score)
+        total_questions = int(total_questions)
+        time_taken_seconds = int(time_taken_seconds)
+    except ValueError:
+        return jsonify({"error": "Invalid numeric values"}), 400
+    
+    percentage = (score / total_questions) * 100.0 if total_questions > 0 else 0
+    
+    # Calculate XP: 10 per correct + bonuses
+    base_xp = score * 10
+    bonus_xp = 0
+    
+    # Perfect score bonus
+    if percentage == 100.0:
+        bonus_xp += 20
+    
+    # Speed bonus (< 30 seconds)
+    if time_taken_seconds < 30:
+        bonus_xp += 15
+    
+    total_xp = base_xp + bonus_xp
+    
+    # Award XP
+    xp_result = award_xp(
+        user_id=user_id,
+        amount=total_xp,
+        reason="quiz_completed",
+        source="quiz_system",
+        category_code=category,
+        related_quiz_id=quiz_id,
+    )
+    
+    earned_badges = []
+    
+    # Check for First Quiz badge
+    quiz_count = (
+        db.session.query(func.count(func.distinct(XPTransaction.related_quiz_id)))
+        .filter(
+            XPTransaction.user_id == user_id,
+            XPTransaction.reason == "quiz_completed",
+            XPTransaction.related_quiz_id.isnot(None),
+        )
+        .scalar()
+    )
+    
+    if quiz_count == 1:  # First quiz just completed
+        first_badge = Badge.query.filter_by(code="FIRST_QUIZ", is_active=True).first()
+        if first_badge:
+            existing = UserBadge.query.filter_by(user_id=user_id, badge_id=first_badge.id).first()
+            if not existing:
+                user_badge = UserBadge(
+                    user_id=user_id,
+                    badge_id=first_badge.id,
+                    source="quiz_completion",
+                    related_quiz_id=quiz_id,
+                )
+                db.session.add(user_badge)
+                earned_badges.append({
+                    "code": first_badge.code,
+                    "name": first_badge.name,
+                    "description": first_badge.description,
+                    "icon": first_badge.icon_url,
+                })
+    
+    # Perfect Score badge
+    if percentage == 100.0:
+        perfect_badge = Badge.query.filter_by(code="PERFECT_SCORE", is_active=True).first()
+        if perfect_badge:
+            existing = UserBadge.query.filter_by(user_id=user_id, badge_id=perfect_badge.id).first()
+            if not existing:
+                user_badge = UserBadge(
+                    user_id=user_id,
+                    badge_id=perfect_badge.id,
+                    source="quiz_completion",
+                    related_quiz_id=quiz_id,
+                )
+                db.session.add(user_badge)
+                earned_badges.append({
+                    "code": perfect_badge.code,
+                    "name": perfect_badge.name,
+                    "description": perfect_badge.description,
+                    "icon": perfect_badge.icon_url,
+                })
+    
+    # Speed Master badge
+    if time_taken_seconds < 30:
+        speed_badge = Badge.query.filter_by(code="SPEED_MASTER", is_active=True).first()
+        if speed_badge:
+            existing = UserBadge.query.filter_by(user_id=user_id, badge_id=speed_badge.id).first()
+            if not existing:
+                user_badge = UserBadge(
+                    user_id=user_id,
+                    badge_id=speed_badge.id,
+                    source="quiz_completion",
+                    related_quiz_id=quiz_id,
+                )
+                db.session.add(user_badge)
+                earned_badges.append({
+                    "code": speed_badge.code,
+                    "name": speed_badge.name,
+                    "description": speed_badge.description,
+                    "icon": speed_badge.icon_url,
+                })
+    
+    db.session.commit()
+    
+    # Get updated level info
+    level_info = get_level_progress(xp_result["new_total_xp"])
+    
+    return jsonify({
+        "message": "Quiz completed successfully",
+        "xp_gained": total_xp,
+        "base_xp": base_xp,
+        "bonus_xp": bonus_xp,
+        "new_total_xp": xp_result["new_total_xp"],
+        "new_level": level_info["level"],
+        "progress_pct": level_info["progress_pct"],
+        "percentage": round(percentage, 2),
+        "earned_badges": earned_badges,
+        "quizzes_completed": quiz_count or 0,
+    }), 200
