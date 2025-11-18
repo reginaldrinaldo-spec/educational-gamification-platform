@@ -414,3 +414,67 @@ def complete_quiz():
         "category_progress": category_info,
         "quizzes_completed": quiz_count or 0,
     }), 200
+
+
+# ===== LEADERBOARD ENDPOINT =====
+@gamification_bp.route("/leaderboard", methods=["GET"])
+def get_leaderboard():
+    """Get top players leaderboard"""
+    try:
+        # Get query parameters
+        limit = request.args.get('limit', 10, type=int)
+        category = request.args.get('category', None)
+        timeframe = request.args.get('timeframe', 'all')  # all, week, month
+        
+        # Base query: get users with total_xp
+        query = db.session.query(
+            XPTransaction.user_id,
+            func.sum(XPTransaction.xp_amount).label('total_xp'),
+            func.count(XPTransaction.id).label('quiz_count')
+        ).group_by(XPTransaction.user_id)
+        
+        # Filter by timeframe
+        if timeframe == 'week':
+            from datetime import datetime, timedelta
+            week_ago = datetime.now() - timedelta(days=7)
+            query = query.filter(XPTransaction.timestamp >= week_ago)
+        elif timeframe == 'month':
+            from datetime import datetime, timedelta
+            month_ago = datetime.now() - timedelta(days=30)
+            query = query.filter(XPTransaction.timestamp >= month_ago)
+        
+        # Order and limit
+        query = query.order_by(func.sum(XPTransaction.xp_amount).desc()).limit(limit)
+        results = query.all()
+        
+        # Format leaderboard
+        leaderboard = []
+        for rank, (user_id, total_xp, quiz_count) in enumerate(results, 1):
+            # Get user's level
+            level_info = get_level_progress(total_xp)
+            
+            # Get user's streak
+            streak = UserStreak.query.filter_by(user_id=user_id).first()
+            current_streak = streak.current_streak if streak else 0
+            
+            # Get badge count
+            badge_count = UserBadge.query.filter_by(user_id=user_id, is_active=True).count()
+            
+            leaderboard.append({
+                "rank": rank,
+                "user_id": user_id,
+                "total_xp": int(total_xp),
+                "level": level_info["level"],
+                "quiz_count": quiz_count,
+                "badge_count": badge_count,
+                "current_streak": current_streak
+            })
+        
+        return jsonify({
+            "leaderboard": leaderboard,
+            "timeframe": timeframe,
+            "total_players": len(leaderboard)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
