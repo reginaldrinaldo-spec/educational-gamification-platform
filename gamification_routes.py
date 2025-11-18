@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy import func, desc
+import logging
 from datetime import datetime, timedelta
 from gamification_models import (
     db, Badge, Achievement, UserBadge, UserAchievement,
@@ -9,6 +10,10 @@ from gamification_models import (
 )
 
 gamification_bp = Blueprint("gamification", __name__, url_prefix="/api")
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def get_user_id_from_request():
     user_id = request.headers.get("X-User-Id") or request.args.get("user_id")
@@ -477,4 +482,41 @@ def get_leaderboard():
         }), 200
         
     except Exception as e:
+                logger.error(f"Error in leaderboard endpoint: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to fetch leaderboard", "message": str(e)}), 500
+
+
+# Error handling decorator
+def handle_errors(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ValueError as e:
+            logger.warning(f"Validation error in {func.__name__}: {str(e)}")
+            return jsonify({"error": "Validation error", "message": str(e)}), 400
+        except Exception as e:
+            logger.error(f"Unexpected error in {func.__name__}: {str(e)}", exc_info=True)
+            return jsonify({"error": "Internal server error", "message": str(e)}), 500
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+
+# Health check endpoint
+@gamification_bp.route("/health", methods=["GET"])
+def health_check():
+    try:
+        # Check database connection
+        db.session.execute("SELECT 1")
+        return jsonify({
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }), 503
         return jsonify({"error": str(e)}), 500
