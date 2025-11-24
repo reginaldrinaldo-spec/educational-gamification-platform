@@ -330,11 +330,11 @@ def register_routes(app: Flask):
         app.register_blueprint(gamification_bp)
 
     # ----- AUTH -----
-@app.post("/auth/register")
-def register():
+    @app.post("/auth/register")
+    def register():
         data = request.get_json() or {}
         username = data.get("username", "").strip()
-            email = data.get("email", "").strip().lower()
+                email = data.get("email", "").strip().lower()
             password = data.get("password")
 
         if not username or not email or not password:
