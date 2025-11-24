@@ -508,7 +508,6 @@ def register_routes(app: Flask):
             return jsonify({"status": "ok", "database": "up"}), 200
         except Exception:
             return jsonify({"status": "degraded", "database": "down"}), 503
-))
     # ----- ADMIN SEED ENDPOINT -----
     @app.post("/admin/seed-database")
     def seed_database():
