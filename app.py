@@ -334,8 +334,8 @@ def register_routes(app: Flask):
 def register():
         data = request.get_json() or {}
         username = data.get("username", "").strip()
-        email = data.get("email", "").strip().lower()
-        password = data.get("password")
+            email = data.get("email", "").strip().lower()
+            password = data.get("password")
 
         if not username or not email or not password:
             return jsonify({"error": "username, email, password required"}), 400
@@ -354,8 +354,8 @@ def register():
         token = create_access_token(identity=user.id)
         return jsonify({"access_token": token, "user": user.to_dict()}), 201
 
-    @app.post("/auth/login")
-    def login():
+        @app.post("/auth/login")
+        def login():
         data = request.get_json() or {}
         identifier = data.get("username") or data.get("email")
         password = data.get("password")
