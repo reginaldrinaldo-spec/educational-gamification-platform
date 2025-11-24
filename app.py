@@ -10,7 +10,7 @@ from flask_jwt_extended import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 import os
 from gamification_routes import gamification_bp
 
@@ -504,7 +504,7 @@ def register_routes(app: Flask):
     @app.get("/health")
     def health():
         try:
-            db.session.execute(db.select(1))
+            db.session.execute(text("SELECT 1")
             return jsonify({"status": "ok", "database": "up"}), 200
         except Exception:
             return jsonify({"status": "degraded", "database": "down"}), 503
