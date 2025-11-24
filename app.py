@@ -325,9 +325,8 @@ def run_seed_data():
 # ---------- ROUTES ----------
 
 def register_routes(app: Flask):
-
-        # Register gamification blueprint
-        app.register_blueprint(gamification_bp)
+    # Register gamification blueprint
+    app.register_blueprint(gamification_bp)
 
     # ----- AUTH -----
     @app.post("/auth/register")
@@ -336,9 +335,9 @@ def register_routes(app: Flask):
         username = data.get("username", "").strip()
         email = data.get("email", "").strip().lower()
         password = data.get("password")
+        
         if not username or not email or not password:
             return jsonify({"error": "username, email, password required"}), 400
-
         if User.query.filter((User.username == username) | (User.email == email)).first():
             return jsonify({"error": "username or email already in use"}), 409
 
