@@ -334,7 +334,7 @@ def register_routes(app: Flask):
         def register():
                 data = request.get_json() or {}
                 username = data.get("username", "").strip()
-                    data.get("email", "").strip().lower()
+        email = data.get("email", "").strip().lower()
             password = data.get("password")
 
         if not username or not email or not password:
