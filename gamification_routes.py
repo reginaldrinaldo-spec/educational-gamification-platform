@@ -482,9 +482,8 @@ def get_leaderboard():
         }), 200
         
     except Exception as e:
-                logger.error(f"Error in leaderboard endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error in leaderboard endpoint: {str(e)}", exc_info=True)
         return jsonify({"error": "Failed to fetch leaderboard", "message": str(e)}), 500
-
 
 # Error handling decorator
 def handle_errors(func):
