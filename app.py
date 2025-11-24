@@ -335,7 +335,7 @@ def register_routes(app: Flask):
                 data = request.get_json() or {}
                 username = data.get("username", "").strip()
         email = data.get("email", "").strip().lower()
-            password = data.get("password")
+    password = data.get("password")
 
         if not username or not email or not password:
             return jsonify({"error": "username, email, password required"}), 400
