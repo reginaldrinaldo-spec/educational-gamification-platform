@@ -348,11 +348,11 @@ def register_routes(app: Flask):
         )
         db.session.add(user)
         db.session.commit()
-
+        
         token = create_access_token(identity=user.id)
         return jsonify({"access_token": token, "user": user.to_dict()}), 201
 
-        @app.post("/auth/login")
+    @app.post("/auth/login")
     def login():
         data = request.get_json() or {}
         identifier = data.get("username") or data.get("email")
@@ -364,12 +364,12 @@ def register_routes(app: Flask):
         user = User.query.filter(
             (User.username == identifier) | (User.email == identifier.lower())
         ).first()
-                if not user or not check_password_hash(user.password_hash, password):
+        
+        if not user or not check_password_hash(user.password_hash, password):
             return jsonify({"error": "invalid credentials"}), 401
-
+        
         token = create_access_token(identity=user.id)
         return jsonify({"access_token": token, "user": user.to_dict()}), 200
-
     # ----- USER PROFILE -----
     @app.get("/users/me")
     @jwt_required()
