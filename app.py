@@ -330,7 +330,7 @@ def register_routes(app: Flask):
         app.register_blueprint(gamification_bp)
 
     # ----- AUTH -----
-    @app.post("/auth/register")
+@app.post("/auth/register")
     def register():
         data = request.get_json() or {}
         username = data.get("username", "").strip()
