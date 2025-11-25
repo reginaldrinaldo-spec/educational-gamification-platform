@@ -330,7 +330,7 @@ def register_routes(app: Flask):
 
     # ----- AUTH -----
 @app.post("/auth/register")
-    def register():
+def register():
         data = request.get_json() or {}
         username = data.get("username", "").strip()
         email = data.get("email", "").strip().lower()
