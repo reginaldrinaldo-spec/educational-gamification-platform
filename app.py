@@ -353,7 +353,7 @@ def register():
         return jsonify({"access_token": token, "user": user.to_dict()}), 201
 
 @app.post("/auth/login")
-    def login():
+def login():
         data = request.get_json() or {}
         identifier = data.get("username") or data.get("email")
         password = data.get("password")
