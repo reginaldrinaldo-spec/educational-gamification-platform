@@ -329,8 +329,8 @@ def register_routes(app: Flask):
     app.register_blueprint(gamification_bp)
 
     # ----- AUTH -----
-@app.post("/auth/register")
-def register():
+    @app.post("/auth/register")
+    def register():
         data = request.get_json() or {}
         username = data.get("username", "").strip()
         email = data.get("email", "").strip().lower()
@@ -352,8 +352,8 @@ def register():
         token = create_access_token(identity=user.id)
         return jsonify({"access_token": token, "user": user.to_dict()}), 201
 
-@app.post("/auth/login")
-def login():
+    @app.post("/auth/login")
+    def login():
         data = request.get_json() or {}
         identifier = data.get("username") or data.get("email")
         password = data.get("password")
@@ -396,7 +396,7 @@ def login():
         return jsonify([m.to_dict() for m in modules])
 
     # ----- START SESSION -----
-@app.post("/sessions")
+    @app.post("/sessions")
     @jwt_required()
     def start_session():
         user_id = get_jwt_identity()
@@ -416,7 +416,7 @@ def login():
         return jsonify({"session": session.to_dict()}), 201
 
     # ----- SUBMIT PROGRESS -----
-@app.post("/sessions/<int:session_id>/progress")
+    @app.post("/sessions/<int:session_id>/progress")
     @jwt_required()
     def submit_progress(session_id):
         user_id = get_jwt_identity()
@@ -502,15 +502,15 @@ def login():
 
     # ----- HEALTH CHECK -----
     @app.get("/health")
-def health():
-    try:
-        db.session.execute(text("SELECT 1").bindparams())
-        return jsonify({"status": "ok", "database": "up"}), 200
-    except Exception:
-        return jsonify({"status": "degraded", "database": "down"}), 503
-# ----- ADMIN SEED ENDPOINT -----
-@app.post("/admin/seed-database")
-def seed_database():
+    def health():
+        try:
+            db.session.execute(text("SELECT 1")
+            return jsonify({"status": "ok", "database": "up"}), 200
+        except Exception:
+            return jsonify({"status": "degraded", "database": "down"}), 503
+    # ----- ADMIN SEED ENDPOINT -----
+    @app.post("/admin/seed-database")
+    def seed_database():
         """
         Protected seeding endpoint.
         Requires:
@@ -540,7 +540,7 @@ def seed_database():
 
 
     # ----- ADMIN SEED QUIZ ENDPOINT -----
-@app.post("/admin/seed-quiz")
+    @app.post("/admin/seed-quiz")
     def seed_quiz():
         """
         Seed quiz questions from JSON payload.
