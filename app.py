@@ -22,12 +22,12 @@ jwt = JWTManager()
 def create_app():
     app = Flask(__name__)
 
-# ---------- CORE CONFIG ----------
+    # ---------- CORE CONFIG ----------
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", app.config["SECRET_KEY"])
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=12)
 
-# ---------- DATABASE CONFIG ----------
+    # ---------- DATABASE CONFIG ----------
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL environment variable is required for PostgreSQL.")
@@ -69,7 +69,7 @@ class User(db.Model):
     sessions = db.relationship("GameSession", back_populates="user", cascade="all, delete-orphan")
     analytics = db.relationship("Analytics", back_populates="user", cascade="all, delete-orphan")
 
-def to_dict(self):
+    def to_dict(self):
         return {
             "id": self.id,
             "username": self.username,
@@ -89,7 +89,7 @@ class Module(db.Model):
 
     sessions = db.relationship("GameSession", back_populates="module", cascade="all, delete-orphan")
 
-def to_dict(self):
+    def to_dict(self):
         return {
             "id": self.id,
             "title": self.title,
@@ -112,7 +112,7 @@ class GameSession(db.Model):
     module = db.relationship("Module", back_populates="sessions")
     analytics = db.relationship("Analytics", back_populates="session", cascade="all, delete-orphan")
 
-def to_dict(self):
+    def to_dict(self):
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -133,7 +133,7 @@ class Analytics(db.Model):
     user = db.relationship("User", back_populates="analytics")
     session = db.relationship("GameSession", back_populates="analytics")
 
-def to_dict(self):
+    def to_dict(self):
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -152,7 +152,7 @@ class Quiz(db.Model):
     
     questions = db.relationship("Question", back_populates="quiz", cascade="all, delete-orphan")
     
-def to_dict(self):
+    def to_dict(self):
         return {
             "id": self.id,
             "title": self.title,
@@ -176,7 +176,7 @@ class Question(db.Model):
     
     quiz = db.relationship("Quiz", back_populates="questions")
     
-def to_dict(self):
+    def to_dict(self):
         return {
             "id": self.id,
             "quiz_id": self.quiz_id,
@@ -328,7 +328,7 @@ def register_routes(app: Flask):
     # Register gamification blueprint
     app.register_blueprint(gamification_bp)
 
-# ----- AUTH -----
+    # ----- AUTH -----
 @app.post("/auth/register")
 def register():
         data = request.get_json() or {}
@@ -370,19 +370,19 @@ def login():
         
         token = create_access_token(identity=user.id)
         return jsonify({"access_token": token, "user": user.to_dict()}), 200
-# ----- USER PROFILE -----
-@app.get("/users/me")
-@jwt_required()
-def get_me():
+    # ----- USER PROFILE -----
+    @app.get("/users/me")
+    @jwt_required()
+    def get_me():
         user = User.query.get(get_jwt_identity())
         if not user:
             return jsonify({"error": "user not found"}), 404
         return jsonify(user.to_dict())
 
-# ----- MODULES -----
-@app.get("/modules")
-@jwt_required(optional=True)
-def list_modules():
+    # ----- MODULES -----
+    @app.get("/modules")
+    @jwt_required(optional=True)
+    def list_modules():
         difficulty = request.args.get("difficulty")
         subject = request.args.get("subject")
 
@@ -395,10 +395,10 @@ def list_modules():
         modules = query.order_by(Module.id.asc()).all()
         return jsonify([m.to_dict() for m in modules])
 
-# ----- START SESSION -----
+    # ----- START SESSION -----
 @app.post("/sessions")
-@jwt_required()
-def start_session():
+    @jwt_required()
+    def start_session():
         user_id = get_jwt_identity()
         module_id = request.json.get("module_id")
 
@@ -415,10 +415,10 @@ def start_session():
 
         return jsonify({"session": session.to_dict()}), 201
 
-# ----- SUBMIT PROGRESS -----
+    # ----- SUBMIT PROGRESS -----
 @app.post("/sessions/<int:session_id>/progress")
-@jwt_required()
-def submit_progress(session_id):
+    @jwt_required()
+    def submit_progress(session_id):
         user_id = get_jwt_identity()
         session = GameSession.query.get(session_id)
 
@@ -444,10 +444,10 @@ def submit_progress(session_id):
             "analytics": analytics_entry.to_dict()
         })
 
-# ----- SESSION RESULTS -----
-@app.get("/sessions/<int:session_id>/results")
-@jwt_required()
-def session_results(session_id):
+    # ----- SESSION RESULTS -----
+    @app.get("/sessions/<int:session_id>/results")
+    @jwt_required()
+    def session_results(session_id):
         user_id = get_jwt_identity()
         session = GameSession.query.get(session_id)
 
@@ -461,10 +461,10 @@ def session_results(session_id):
             "analytics": [a.to_dict() for a in analytics_entries]
         })
 
-# ----- LEADERBOARD -----
-@app.get("/leaderboard")
-@jwt_required(optional=True)
-def leaderboard():
+    # ----- LEADERBOARD -----
+    @app.get("/leaderboard")
+    @jwt_required(optional=True)
+    def leaderboard():
         module_id = request.args.get("module_id", type=int)
         limit = request.args.get("limit", type=int, default=10)
 
@@ -487,10 +487,10 @@ def leaderboard():
             for s in sessions
         ])
 
-# ----- ANALYTICS -----
-@app.get("/analytics")
-@jwt_required()
-def analytics_view():
+    # ----- ANALYTICS -----
+    @app.get("/analytics")
+    @jwt_required()
+    def analytics_view():
         user_id = get_jwt_identity()
         session_id = request.args.get("session_id", type=int)
 
@@ -500,8 +500,8 @@ def analytics_view():
 
         return jsonify([a.to_dict() for a in q.all()])
 
-# ----- HEALTH CHECK -----
-@app.get("/health")
+    # ----- HEALTH CHECK -----
+    @app.get("/health")
 def health():
     try:
         db.session.execute(text("SELECT 1").bindparams())
@@ -539,9 +539,9 @@ def seed_database():
 
 
 
-# ----- ADMIN SEED QUIZ ENDPOINT -----
+    # ----- ADMIN SEED QUIZ ENDPOINT -----
 @app.post("/admin/seed-quiz")
-def seed_quiz():
+    def seed_quiz():
         """
         Seed quiz questions from JSON payload.
         Requires:
@@ -600,15 +600,15 @@ def seed_quiz():
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
-# ----- GET QUIZZES -----
-@jwt_required(optional=True)
-def list_quizzes():
+    # ----- GET QUIZZES -----
+    @jwt_required(optional=True)
+    def list_quizzes():
         quizzes = Quiz.query.order_by(Quiz.created_at.desc()).all()
         return jsonify([q.to_dict() for q in quizzes])
 
-@app.get("/quizzes/<int:quiz_id>")
-@jwt_required(optional=True)
-def get_quiz(quiz_id):
+    @app.get("/quizzes/<int:quiz_id>")
+    @jwt_required(optional=True)
+    def get_quiz(quiz_id):
         quiz = Quiz.query.get(quiz_id)
         if not quiz:
             return jsonify({"error": "quiz not found"}), 404
@@ -618,9 +618,9 @@ def get_quiz(quiz_id):
         result["questions"] = questions
         return jsonify(result)
 
-@app.get("/quizzes/<int:quiz_id>/questions")
-@jwt_required(optional=True)
-def get_quiz_questions(quiz_id):
+    @app.get("/quizzes/<int:quiz_id>/questions")
+    @jwt_required(optional=True)
+    def get_quiz_questions(quiz_id):
         quiz = Quiz.query.get(quiz_id)
         if not quiz:
             return jsonify({"error": "quiz not found"}), 404
